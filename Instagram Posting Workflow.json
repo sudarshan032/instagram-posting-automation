@@ -1,0 +1,583 @@
+{
+  "name": "Instagram Posting Workflow",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "39862cdb-4105-44ac-9038-03ee070719c0",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        192,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Get the response string\nlet responseText = $input.item.json?.content?.parts?.[0]?.text || $input.item.json?.text || JSON.stringify($input.item.json);\n\n// 2. Remove code block if present\nif (responseText.startsWith(\"```\")) {\n    const match = responseText.match(/```(?:json)?\\s*([\\s\\S]*?)```/);\n    if (match) responseText = match[1].trim();\n}\n\n// 3. Parse JSON safely\nlet ideas = [];\ntry {\n    ideas = JSON.parse(responseText);\n    if (!Array.isArray(ideas)) throw new Error(\"Parsed JSON is not an array\");\n} catch (err) {\n    throw new Error(\"Failed to parse AI response JSON: \" + err.message);\n}\n\n// 4. Return items\nreturn ideas.map(idea => ({ json: idea }));\n"
+      },
+      "id": "530eefcc-b45e-4f0b-815f-3579ea963c30",
+      "name": "Parse and Split Ideas",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        544,
+        592
+      ]
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.5-pro",
+          "mode": "list",
+          "cachedResultName": "models/gemini-2.5-pro"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=Create a viral Instagram caption for this idea:\n\nTitle: {{ $json.title }}\nHook: {{ $json.hook }}\nDirection: {{ $json.content_direction }}\n\nThe caption should:\n- Start with a powerful hook that stops scrolling\n- Be 150-200 words\n- Include storytelling elements\n- Use natural line breaks for readability\n- Include relevant emojis (not excessive)\n- End with an engaging question to drive comments\n- Be authentic and conversational\n\nWrite ONLY the caption text, nothing else. No explanations or meta-commentary."
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1,
+      "position": [
+        784,
+        592
+      ],
+      "id": "1b9c54ea-3057-4293-9222-ca7bd7eecda8",
+      "name": "Generate Caption",
+      "retryOnFail": true,
+      "credentials": {
+        "googlePalmApi": {
+          "id": "Joah30GsBz9FKKxs",
+          "name": "Google Gemini(PaLM) Api account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.5-flash",
+          "mode": "list",
+          "cachedResultName": "models/gemini-2.5-flash"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=Create a detailed prompt for generating an Instagram post image with text overlay.\n\nPost Title: {{ $('Parse and Split Ideas').item.json.title }}\nHook: {{ $('Parse and Split Ideas').item.json.hook }}\n\nIMAGE REQUIREMENTS:\n- Main focus: Large, bold text overlay with the title text\n- Text must be EXTREMELY READABLE - huge font, high contrast\n- Modern Instagram aesthetic - clean, professional design\n- Use vibrant gradient background OR solid color with complementary accent\n- Square 1:1 aspect ratio\n- Include subtle icons or design elements (don't overshadow text)\n- Professional typography - sans-serif, bold weight\n- Color palette: Modern and eye-catching (suggest specific colors)\n\nWrite a detailed 80-120 word image generation prompt that emphasizes the TEXT OVERLAY as the primary element. The prompt should describe:\n- A square Instagram news post template (1080x1080px) featuring a realistic or thematic background image related to the post’s concept, partially covered with a bold black gradient overlay for text separation. \n- Center the main headline \"{{ $('Parse and Split Ideas').item.json.title }}\" in large, bold, white sans-serif font at the top, ensuring extreme readability and contrast.\n- Beneath the headline, add the hook \"{{ $('Parse and Split Ideas').item.json.hook }}\" in slightly smaller but equally bold white text. \n- Include a subtle logo or circular icon at one corner, lightly accented with modern colors like vibrant cyan, electric purple, or deep orange. \n- Structure content blocks and accent lines for a clean, news-inspired look, visually reinforcing the hook theme (e.g., parsing or splitting concepts, use shapes like arrows or connected nodes). \n- Ensure the interface looks modern, professional, and Instagram-ready, with supporting design elements that never overpower the main text.\n\nPrompt only, no other text:\n"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1,
+      "position": [
+        1200,
+        592
+      ],
+      "id": "6ee789d4-cc50-4443-a63e-3c2d22fafe32",
+      "name": "Generate Image Prompt",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "8O978DrIDJQ4u3ZR",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://news.google.com/rss/search?q={{ $json.industry }}&hl=en-US&gl=US&ceid=US:en",
+        "options": {}
+      },
+      "id": "3bada7a7-3831-4fce-a58a-00541fcb31bf",
+      "name": "Fetch News RSS1",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1,
+      "position": [
+        640,
+        320
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "bc9f71ff-a43b-4a73-84af-8bafad54f4ff",
+      "name": "Limit articles",
+      "type": "n8n-nodes-base.limit",
+      "typeVersion": 1,
+      "position": [
+        864,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.5-flash",
+          "mode": "list",
+          "cachedResultName": "models/gemini-2.5-flash"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=You are a viral content strategist. Based on these {{ $('Set Industry').item.json.industry }} news articles:\n\n{{ $json.formattedArticles }}\n\nGenerate EXACTLY 1 viral Instagram post ideas. Each idea should:\n1. Be attention-grabbing and shareable\n2. Include a unique angle or hook\n3. Be relevant to the news but add value\n4. Target emotions: curiosity, inspiration, or surprise\n\nFormat your response as a JSON array with this EXACT structure:\n[\n  {\n    \"idea_number\": 1,\n    \"title\": \"Brief catchy title\",\n    \"hook\": \"The attention-grabbing angle\",\n    \"content_direction\": \"What the post should communicate\",\n    \"source_article\": \"Which news article this is based on\"\n  }\n]\n\nReturn ONLY the JSON array, nothing else."
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1,
+      "position": [
+        176,
+        592
+      ],
+      "id": "bf6167c5-5b3f-414c-9ce8-d67a1c70642a",
+      "name": "Generate Viral Ideas",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "Joah30GsBz9FKKxs",
+          "name": "Google Gemini(PaLM) Api account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "industry",
+              "name": "industry",
+              "value": "movies",
+              "type": "string"
+            },
+            {
+              "id": "instagram_account_id",
+              "name": "instagram_account_id",
+              "value": "dummydas47",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "d330e132-8099-4c30-bccb-e31c57417931",
+      "name": "Set Industry",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        416,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "destinationFieldName": "articles",
+        "options": {}
+      },
+      "id": "b2f185b9-a514-46f2-b098-8913d8214a32",
+      "name": "Aggregate News",
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        1088,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "language": "pythonNative",
+        "pythonCode": "# Loop over all items\nfor item in _items:\n    # Ensure 'articles' exists (if you aggregated multiple articles)\n    articles = item[\"json\"].get(\"articles\", [item[\"json\"]])  # fallback to single article if no array\n\n    # Create formatted text\n    formatted_articles = \"\\n\".join(\n        f\"- {article.get('title', '')}: {article.get('contentSnippet', article.get('description', ''))} , links : {article.get('link', '')}\"\n        for article in articles\n    )\n\n    # Replace the item JSON with only the formatted field\n    item[\"json\"] = {\n        \"formattedArticles\": formatted_articles\n    }\n\n# Return all items\nreturn _items\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1296,
+        320
+      ],
+      "id": "5320b434-91e5-49a4-9c6f-a44d06a05071",
+      "name": "parser"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "image/png"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "inputs",
+              "value": "={{ $json.content.parts[0].text }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        192,
+        832
+      ],
+      "id": "3a774ede-48a5-445d-920d-cbedb203ba81",
+      "name": "generate image",
+      "alwaysOutputData": false,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "biO5sQoQPOsztuI6",
+          "name": "Header Auth account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.imgbb.com/1/upload",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "key",
+              "value": "8c5bef84ea5f0e3cbc9d4e86efe30121"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "image",
+              "inputDataFieldName": "=data"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        448,
+        832
+      ],
+      "id": "d5e70ed2-0d55-412a-8b07-a2fc12a57194",
+      "name": "save image",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "tX7PbfpVnkgcvEkd",
+          "name": "Header Auth account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "6433bcb5-0aa2-4836-abd6-b64a0738ad01",
+              "name": "image",
+              "value": "={{ $json.data.url }}",
+              "type": "string"
+            },
+            {
+              "id": "c48dabb6-0c58-4d49-b8ae-8a3d0302fd93",
+              "name": "Node",
+              "value": "17841477711508487",
+              "type": "string"
+            },
+            {
+              "id": "f31371d0-6531-4247-a985-085ab2b27587",
+              "name": "caption",
+              "value": "={{ $('Generate Caption').item.json.content.parts[0].text }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "bfb6b2a6-18cd-467b-9600-452f72482f19",
+      "name": "Prepare Post Data",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        672,
+        832
+      ]
+    },
+    {
+      "parameters": {
+        "httpRequestMethod": "POST",
+        "graphApiVersion": "v23.0",
+        "node": "={{ $json.Node }}",
+        "edge": "media",
+        "options": {
+          "queryParameters": {
+            "parameter": [
+              {
+                "name": "=caption",
+                "value": "={{ $json.caption }}"
+              },
+              {
+                "name": "Node",
+                "value": "={{ $json.Node }}"
+              },
+              {
+                "name": "image_url",
+                "value": "={{ $json.image }}"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.facebookGraphApi",
+      "typeVersion": 1,
+      "position": [
+        896,
+        832
+      ],
+      "id": "211cf24a-d5cb-497b-ab6a-f756450a49d4",
+      "name": "connect graph api",
+      "credentials": {
+        "facebookGraphApi": {
+          "id": "GF86FkzwTsr96V3x",
+          "name": "Facebook Graph account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "httpRequestMethod": "POST",
+        "graphApiVersion": "v22.0",
+        "node": "={{ $('Prepare Post Data').item.json.Node }}",
+        "edge": "media_publish",
+        "options": {
+          "queryParameters": {
+            "parameter": [
+              {
+                "name": "creation_id",
+                "value": "={{ $json.id }}"
+              },
+              {
+                "name": "image_url",
+                "value": "={{ $('Prepare Post Data').item.json.image }}"
+              },
+              {
+                "name": "caption",
+                "value": "={{ $('Prepare Post Data').item.json.caption }}"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.facebookGraphApi",
+      "typeVersion": 1,
+      "position": [
+        1120,
+        832
+      ],
+      "id": "c6123904-ead9-4677-a0bf-5e3b59472738",
+      "name": "publish post",
+      "credentials": {
+        "facebookGraphApi": {
+          "id": "GF86FkzwTsr96V3x",
+          "name": "Facebook Graph account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Set Industry",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse and Split Ideas": {
+      "main": [
+        [
+          {
+            "node": "Generate Caption",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Caption": {
+      "main": [
+        [
+          {
+            "node": "Generate Image Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Image Prompt": {
+      "main": [
+        [
+          {
+            "node": "generate image",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch News RSS1": {
+      "main": [
+        [
+          {
+            "node": "Limit articles",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Limit articles": {
+      "main": [
+        [
+          {
+            "node": "Aggregate News",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Viral Ideas": {
+      "main": [
+        [
+          {
+            "node": "Parse and Split Ideas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Industry": {
+      "main": [
+        [
+          {
+            "node": "Fetch News RSS1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate News": {
+      "main": [
+        [
+          {
+            "node": "parser",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "parser": {
+      "main": [
+        [
+          {
+            "node": "Generate Viral Ideas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "generate image": {
+      "main": [
+        [
+          {
+            "node": "save image",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "save image": {
+      "main": [
+        [
+          {
+            "node": "Prepare Post Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Post Data": {
+      "main": [
+        [
+          {
+            "node": "connect graph api",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "connect graph api": {
+      "main": [
+        [
+          {
+            "node": "publish post",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "ed3e8446-8f35-4714-afcc-01eb1e6ccfe4",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "6e07bc14474ec26ce530c113423d56c0234f61c50231ab55e1dcfa86c92550a7"
+  },
+  "id": "6Cw1WWS1l5vPUWxB",
+  "tags": []
+}
