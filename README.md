@@ -88,4 +88,4 @@ This workflow automates the end-to-end process of creating viral Instagram posts
 
 ## Resources & References
 
-- [n8n Documentation](https://docs
+- [n8n Documentation]((https://docs.n8n.io/)]
